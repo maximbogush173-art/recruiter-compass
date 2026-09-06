@@ -1,0 +1,24 @@
+{
+  "name": "potok-recruiter-compass",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/prepare-sites-build.mjs",
+    "build:standalone": "npm run build && node scripts/build-standalone.mjs",
+    "preview": "vite preview",
+    "test:sites": "node --test tests/sites-worker.test.mjs",
+    "test:demo-data": "node scripts/validate-demo-data.mjs",
+    "n8n:agentic-lab:build": "node infra/n8n/agentic-lab/build-agentic-lab.mjs",
+    "n8n:agentic-lab:validate": "node infra/n8n/agentic-lab/validate-agentic-lab.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/manrope": "^5.3.0",
+    "@phosphor-icons/react": "^2.1.10",
+    "@vitejs/plugin-react": "5.0.4",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "vite": "6.4.2"
+  }
+}

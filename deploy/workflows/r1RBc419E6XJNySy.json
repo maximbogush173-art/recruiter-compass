@@ -1,0 +1,109 @@
+{
+  "id": "r1RBc419E6XJNySy",
+  "name": "get_vacancies",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "92f44abd-ab68-4aa4-81b0-54601f3d8792",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "a313deee-32c3-45f6-ae4f-b31fb136776f",
+      "name": "Собрать вход",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const i = $input.first().json || {};\nreturn [{ json: { intent: 'list_vacancies', vacancy_id: Number(i.vacancy_id) || 0, candidate_id: Number(i.candidate_id) || 0, action_id: String(i.action_id || ''), transcript: String(i.transcript || ''), feedback: String(i.feedback || ''), criteria: i.criteria || null } }];"
+      }
+    },
+    {
+      "id": "c8e1020c-4d1a-431f-98d0-ef98d6b03341",
+      "name": "Выполнить операцию",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "mode": "once",
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "dTjZJfieb3TTjKZF"
+        }
+      }
+    },
+    {
+      "id": "36c8052b-1b76-40fe-9870-38fe06f58f8d",
+      "name": "Ответ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const r = $input.first().json || {};\nreturn [{ json: { ok: true, data: r } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Собрать вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать вход": {
+      "main": [
+        [
+          {
+            "node": "Выполнить операцию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Выполнить операцию": {
+      "main": [
+        [
+          {
+            "node": "Ответ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": null
+}

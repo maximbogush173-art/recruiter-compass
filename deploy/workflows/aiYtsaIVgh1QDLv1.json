@@ -1,0 +1,109 @@
+{
+  "id": "aiYtsaIVgh1QDLv1",
+  "name": "Идемпотентно записать действие в action_proposals",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "7c77c64a-f226-4c4a-9c40-7eb54e2afd6a",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "013f59b0-b729-4cd5-b7a7-547215ded108",
+      "name": "Собрать идемпотентный INSERT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const inp = $input.first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst cand = Number(inp.candidate_id);\nconst src = Number(inp.source_vacancy_id);\nconst tgt = Number(inp.target_vacancy_id);\nconst actionType = String(inp.action_type || '');\nif (!cand || !actionType) { throw new Error('propose_action требует candidate_id и action_type'); }\nconst payload = inp.payload || {};\nconst sql = \"INSERT INTO recruiter_compass.action_proposals (source_review_id, action_type, status, potok_candidate_id, source_vacancy_id, target_vacancy_id, payload, expires_at) SELECT \" + (inp.source_review_id ? \"'\" + esc(String(inp.source_review_id)) + \"'\" : 'NULL') + \", '\" + esc(actionType) + \"', 'proposed', \" + cand + \", \" + src + \", \" + tgt + \", '\" + esc(JSON.stringify(payload)) + \"'::jsonb, now() + interval '7 days' WHERE NOT EXISTS (SELECT 1 FROM recruiter_compass.action_proposals WHERE potok_candidate_id = \" + cand + \" AND source_vacancy_id = \" + src + \" AND action_type = '\" + esc(actionType) + \"' AND status IN ('proposed','consent_required','ready_for_recruiter_confirmation','confirmed')) RETURNING action_id\";\nreturn [{ json: { sql: sql } }];"
+      }
+    },
+    {
+      "id": "969a47dc-2ba2-480d-b356-830bd53e6db9",
+      "name": "Записать действие",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "1c6762d4-9c81-4f72-a0c3-19da8dfaa744",
+      "name": "Ответ: результат",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = $input.all();\nconst created = rows.some(function(r) { return r.json.action_id; });\nconst actionId = created ? rows.find(function(r) { return r.json.action_id; }).json.action_id : null;\nreturn [{ json: { created: created, action_id: actionId } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Собрать идемпотентный INSERT",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать идемпотентный INSERT": {
+      "main": [
+        [
+          {
+            "node": "Записать действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать действие": {
+      "main": [
+        [
+          {
+            "node": "Ответ: результат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": null
+}

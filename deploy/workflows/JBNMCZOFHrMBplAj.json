@@ -1,0 +1,88 @@
+{
+  "id": "JBNMCZOFHrMBplAj",
+  "name": "Нормализовать резюме кандидата из Potok",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "ee05d044-8c5e-440d-a94d-3468a7556d84",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "45775344-3293-4e86-b36b-8c8cef3c34bf",
+      "name": "Прочитать кандидата",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://demo.app.potok.io/api/v3/applicants/{{ $json.applicant_id }}.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "687d029a-29b4-49e1-b66f-e6f56e19f198",
+      "name": "Нормализовать резюме",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const a = $input.first().json;\nconst resumes = Array.isArray(a.resumes) ? a.resumes : [];\nlet latest = null;\nresumes.forEach(function(r) { if (!latest || r.id > latest.id) { latest = r; } });\nconst cv = (latest && latest.cv_params) || {};\nconst expText = (cv.experience || []).map(function(e) { return e.company + ' — ' + e.position + ': ' + (e.description || ''); }).join(' ');\nconst resumeText = [cv.about_me, expText, cv.skills].filter(function(s) { return s; }).join(' ');\nreturn [{ json: { applicant_id: a.id, name: a.name || '', resume_text: resumeText } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Прочитать кандидата",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать кандидата": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать резюме",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": null
+}

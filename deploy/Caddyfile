@@ -1,0 +1,16 @@
+# Reverse-proxy «Компас рекрутера» (внутри контейнера Caddy слушает :80, наружу проброшен на 8080).
+# Отдаёт статичный фронтенд и проксирует /webhook/* в n8n.
+
+:80 {
+	encode gzip
+
+	handle /webhook/* {
+		reverse_proxy n8n:5678
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

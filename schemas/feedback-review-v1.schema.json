@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeedbackReviewV1",
+  "description": "Классификация отзыва интервьюера (v1). team_fit_veto не требует профессионального обоснования.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["classification", "summary"],
+  "properties": {
+    "classification": { "type": "string", "enum": ["criterion_based_feedback", "team_fit_veto", "insufficient_feedback"] },
+    "criterion_id": { "type": ["string", "null"] },
+    "missing_fact": { "type": ["string", "null"] },
+    "summary": { "type": "string" }
+  }
+}

@@ -1,0 +1,144 @@
+{
+  "id": "0H3QBGgQ7oCy84kX",
+  "name": "get_candidate_review",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "05538688-b0bc-4311-877c-00abefe2790d",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "5c563022-61b7-40ec-b372-3d349eb25419",
+      "name": "Собрать SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const i = $input.first().json || {};\nconst vac = Number(i.vacancy_id) || 0;\nconst cand = Number(i.candidate_id) || 0;\nreturn [{ json: {\n  vacancy_id: vac,\n  candidate_id: cand,\n  criteria_sql: \"SELECT criteria FROM recruiter_compass.vacancy_criteria_versions WHERE potok_vacancy_id = \" + vac + \" AND status = 'confirmed' ORDER BY version_number DESC LIMIT 1\",\n  review_sql: \"SELECT potok_candidate_id, recommendation, summary, evidence, critical_unknowns FROM recruiter_compass.candidate_reviews WHERE potok_vacancy_id = \" + vac + \" AND potok_candidate_id = \" + cand + \" ORDER BY created_at DESC LIMIT 1\"\n} }];"
+      }
+    },
+    {
+      "id": "4ad4e90a-ecd0-45f0-a92f-02b8e1bc03bd",
+      "name": "Критерии",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        448,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.criteria_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "697925d9-2cdc-4c06-b123-64f5fd655ecc",
+      "name": "Разбор",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Собрать SQL\").item.json.review_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "f56d5c2f-1f90-439e-94a8-945d674d5946",
+      "name": "Ответ",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const crit = $('Критерии').first().json.criteria || [];\nconst titleMap = {};\ncrit.forEach(function(c) { if (c && c.criterion_id) { titleMap[c.criterion_id] = c.title; } });\nconst ids = Object.keys(titleMap).sort(function(a, b) { return b.length - a.length; });\nconst clean = function(t) { if (t === undefined || t === null) { return t; } var s = String(t); ids.forEach(function(k) { s = s.split(k).join(titleMap[k]); }); return s; };\nconst stateLabel = { confirmed: 'подтверждено', partially_confirmed: 'частично', needs_clarification: 'уточнить', not_met: 'не соответствует' };\nconst recLabel = { continue: 'вести дальше', clarify: 'уточнить', not_for_current_vacancy: 'не подходит', consider_neighbour_role: 'соседняя роль' };\nconst revItems = $('Разбор').all();\nconst rev = (revItems && revItems[0] && revItems[0].json && revItems[0].json.potok_candidate_id) ? revItems[0].json : null;\nif (!rev) { return [{ json: { ok: true, data: { candidate_id: null, recommendation: 'нет данных', summary: 'Разбор кандидата ещё не сохранён. Запросите разбор кандидатов по вакансии.', evidence: [], critical_unknowns: [] } } }]; }\nconst evidence = (rev.evidence || []).map(function(e) { return { title: titleMap[e.criterion_id] || e.criterion_id, state: stateLabel[e.state] || e.state, claim: clean(e.claim) }; });\nconst unknowns = (rev.critical_unknowns || []).map(function(u) { return { title: titleMap[u.criterion_id] || u.criterion_id, question: clean(u.question) }; });\nreturn [{ json: { ok: true, data: { candidate_id: rev.potok_candidate_id, recommendation: recLabel[rev.recommendation] || rev.recommendation, summary: clean(rev.summary || ''), evidence: evidence, critical_unknowns: unknowns } } }];",
+        "parameters": {
+          "jsCode": "const crit = $('Критерии').first().json.criteria || [];\nconst titleMap = {};\ncrit.forEach(function(c) { if (c && c.criterion_id) { titleMap[c.criterion_id] = c.title; } });\nconst ids = Object.keys(titleMap).sort(function(a, b) { return b.length - a.length; });\nconst clean = function(t) { if (t === undefined || t === null) { return t; } var s = String(t); ids.forEach(function(k) { s = s.split(k).join(titleMap[k]); }); return s; };\nconst stateLabel = { confirmed: 'подтверждено', partially_confirmed: 'частично', needs_clarification: 'уточнить', not_met: 'не соответствует' };\nconst recLabel = { continue: 'вести дальше', clarify: 'уточнить', not_for_current_vacancy: 'не подходит', consider_neighbour_role: 'соседняя роль' };\nconst rev = $('Разбор').first().json || {};\nconst evidence = (rev.evidence || []).map(function(e) { return { title: titleMap[e.criterion_id] || e.criterion_id, state: stateLabel[e.state] || e.state, claim: clean(e.claim) }; });\nconst unknowns = (rev.critical_unknowns || []).map(function(u) { return { title: titleMap[u.criterion_id] || u.criterion_id, question: clean(u.question) }; });\nreturn [{ json: { ok: true, data: { candidate_id: rev.potok_candidate_id, recommendation: recLabel[rev.recommendation] || rev.recommendation, summary: clean(rev.summary || ''), evidence: evidence, critical_unknowns: unknowns } } }];"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Собрать SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать SQL": {
+      "main": [
+        [
+          {
+            "node": "Критерии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Критерии": {
+      "main": [
+        [
+          {
+            "node": "Разбор",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Разбор": {
+      "main": [
+        [
+          {
+            "node": "Ответ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": null
+}

@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DigestV1",
+  "description": "Проактивный дайджест hot action items (v1).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["hot_items", "summary"],
+  "properties": {
+    "hot_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "summary", "proposed_action"],
+        "properties": {
+          "type": { "type": "string", "enum": ["new_candidates", "stalled_candidate", "criteria_missing", "team_fit_veto", "neighbour_opportunity"] },
+          "vacancy_id": { "type": ["string", "null"] },
+          "candidate_id": { "type": ["string", "null"] },
+          "summary": { "type": "string", "minLength": 1 },
+          "proposed_action": { "type": "string" }
+        }
+      }
+    },
+    "summary": { "type": "string" }
+  }
+}

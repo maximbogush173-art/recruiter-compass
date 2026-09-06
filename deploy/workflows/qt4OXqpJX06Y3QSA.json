@@ -1,0 +1,925 @@
+{
+  "id": "qt4OXqpJX06Y3QSA",
+  "name": "4. Действия и отчёт",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "4450a34b-16eb-4f14-b77c-768e04144a78",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        192
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "e0a7172d-c58a-4c60-b223-25e41eca91f7",
+      "name": "Валидировать вход",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nconst intent = String(body.intent || '');\nconst actionId = String(body.action_id || '');\nconst vacancyId = Number(body.vacancy_id);\nif (!intent) { throw new Error('Вход требует intent'); }\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst read_action_sql = actionId ? \"SELECT action_id, action_type, status, potok_candidate_id, source_vacancy_id, target_vacancy_id FROM recruiter_compass.action_proposals WHERE action_id = '\" + esc(actionId) + \"' LIMIT 1\" : \"SELECT 1 WHERE false\";\nconst criteria_sql = \"SELECT criteria FROM recruiter_compass.vacancy_criteria_versions WHERE potok_vacancy_id = \" + vacancyId + \" AND status = 'confirmed' ORDER BY version_number DESC LIMIT 1\";\nconst reviews_sql = \"SELECT potok_candidate_id, recommendation, summary, evidence, critical_unknowns FROM recruiter_compass.candidate_reviews WHERE potok_vacancy_id = \" + vacancyId + \" AND run_id = (SELECT run_id FROM recruiter_compass.candidate_reviews WHERE potok_vacancy_id = \" + vacancyId + \" ORDER BY created_at DESC LIMIT 1) ORDER BY potok_candidate_id\";\nconst actions_sql = \"SELECT action_type, status, potok_candidate_id, source_vacancy_id, target_vacancy_id, payload FROM recruiter_compass.action_proposals WHERE source_vacancy_id = \" + vacancyId + \" OR target_vacancy_id = \" + vacancyId + \" ORDER BY created_at\";\nconst audit_sql = \"SELECT a.event_type, a.actor_type, a.event_data FROM recruiter_compass.action_audit a JOIN recruiter_compass.action_proposals p ON a.action_id = p.action_id WHERE p.source_vacancy_id = \" + vacancyId + \" OR p.target_vacancy_id = \" + vacancyId + \" ORDER BY a.created_at\";\nreturn [{ json: { intent: intent, action_id: actionId, vacancy_id: vacancyId, read_action_sql: read_action_sql, criteria_sql: criteria_sql, reviews_sql: reviews_sql, actions_sql: actions_sql, audit_sql: audit_sql } }];"
+      }
+    },
+    {
+      "id": "596d1c36-9d90-4d7b-8333-b4fc99d99910",
+      "name": "Классификатор намерений",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        176
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "confirm_action",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "confirm_action"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "execute_action",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "execute_action"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "show_digest",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "show_digest"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "2e1259a1-6d8f-4103-9a53-283027894739",
+      "name": "SQL подтверждения",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const actionId = String($('Валидировать вход').first().json.action_id);\nif (!actionId) { throw new Error('confirm_action требует action_id'); }\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'confirmed', recruiter_confirmed_by = 'recruiter', recruiter_confirmed_at = now() WHERE action_id = '\" + esc(actionId) + \"' AND status IN ('proposed','consent_required','ready_for_recruiter_confirmation') RETURNING action_id, status\";\nreturn [{ json: { action_id: actionId, sql: sql } }];"
+      }
+    },
+    {
+      "id": "4777c142-42d6-4cf5-bc3a-dc7a992d3b2e",
+      "name": "Подтвердить",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "f90675f3-01a6-449b-8c9d-8127e981f0f8",
+      "name": "Ответ: подтверждено",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = $input.all();\nconst confirmed = rows.some(function(r) { return r.json.status === 'confirmed'; });\nreturn [{ json: { action_id: $('SQL подтверждения').first().json.action_id, confirmed: confirmed, status: confirmed ? 'confirmed' : 'not_found' } }];"
+      }
+    },
+    {
+      "id": "3e488d94-2e36-40dc-9793-28834b3c80af",
+      "name": "Прочитать действие",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        192
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.read_action_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "91da1679-6fa0-40dd-8c28-a2695ad0556c",
+      "name": "Проверить статус",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const a = $input.first().json;\nif (a.status !== 'confirmed') { throw new Error('Действие не подтверждено (status=' + a.status + ')'); }\nif (a.action_type !== 'transfer_to_neighbouring_vacancy') { throw new Error('Неподдерживаемый action_type: ' + a.action_type); }\nreturn [{ json: { action_id: a.action_id, candidate_id: Number(a.potok_candidate_id), target_vacancy_id: Number(a.target_vacancy_id), source_vacancy_id: Number(a.source_vacancy_id) } }];"
+      }
+    },
+    {
+      "id": "215df3cf-3f25-4443-9b08-94da4401a340",
+      "name": "Проверить наличие",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $json.target_vacancy_id }}/ajs_joins.json?page_size=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "e9946118-fc03-42b4-81b5-9f65a7d52f4c",
+      "name": "Определить перенос",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const action = $('Проверить статус').first().json;\nconst existing = $input.first().json;\nconst objs = (existing && existing.objects) || [];\nconst already = objs.some(function(o) { return Number(o.applicant_id) === action.candidate_id; });\nreturn [{ json: { action_id: action.action_id, candidate_id: action.candidate_id, target_vacancy_id: action.target_vacancy_id, source_vacancy_id: action.source_vacancy_id, already: already } }];"
+      }
+    },
+    {
+      "id": "818410e2-f0f9-47fa-939b-f61a96a6c30f",
+      "name": "Уже на вакансии?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1568,
+        192
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.already }}",
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              },
+              "rightValue": true
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "62328131-7b63-4906-94be-06afd3a8f601",
+      "name": "Пометить (идемпотентно)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        96
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Определить перенос').first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst eventData = { idempotent: true, reason: 'candidate_already_on_target' };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'executed', executed_at = now() WHERE action_id = '\" + esc(String(d.action_id)) + \"' AND status = 'confirmed'; INSERT INTO recruiter_compass.action_audit (action_id, event_type, actor_type, event_data) VALUES ('\" + esc(String(d.action_id)) + \"', 'execution_succeeded', 'agent', '\" + esc(JSON.stringify(eventData)) + \"'::jsonb)\";\nreturn [{ json: { sql: sql, action_id: d.action_id, idempotent: true, target_vacancy_id: d.target_vacancy_id } }];"
+      }
+    },
+    {
+      "id": "efc9036b-1ca2-4fa4-ab80-4a93dd9c1dae",
+      "name": "Записать (идемпотентно)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2016,
+        96
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "3a246d86-06ef-41c7-964b-ea4ddf27461d",
+      "name": "Ответ: идемпотентно",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2240,
+        96
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "action_id",
+              "value": "={{ $(\"Пометить (идемпотентно)\").item.json.action_id }}",
+              "type": "string"
+            },
+            {
+              "id": "i",
+              "name": "idempotent",
+              "value": "={{ $(\"Пометить (идемпотентно)\").item.json.idempotent }}",
+              "type": "boolean"
+            },
+            {
+              "id": "t",
+              "name": "target_vacancy_id",
+              "value": "={{ $(\"Пометить (идемпотентно)\").item.json.target_vacancy_id }}",
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "3f1fafeb-340c-470e-8977-e87c6fdbbf38",
+      "name": "Перенести кандидата",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1792,
+        288
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://demo.app.potok.io/api/v3/ajs_joins.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ job_id: $json.target_vacancy_id, applicant_id: $json.candidate_id, stage_type: \"sourced\" }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "2a6ac1a2-f76f-4b45-9a57-b133439c8bb5",
+      "name": "Пометить исполненным",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        288
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Определить перенос').first().json;\nconst resp = $input.first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst eventData = { idempotent: false, target_vacancy_id: d.target_vacancy_id, ajs_join_id: resp.id || null };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'executed', executed_at = now() WHERE action_id = '\" + esc(String(d.action_id)) + \"' AND status = 'confirmed'; INSERT INTO recruiter_compass.action_audit (action_id, event_type, actor_type, event_data) VALUES ('\" + esc(String(d.action_id)) + \"', 'execution_succeeded', 'agent', '\" + esc(JSON.stringify(eventData)) + \"'::jsonb)\";\nreturn [{ json: { sql: sql, action_id: d.action_id, idempotent: false, target_vacancy_id: d.target_vacancy_id } }];"
+      }
+    },
+    {
+      "id": "9e5681a8-7235-467e-bd65-d1d0bfc78996",
+      "name": "Записать исполнение",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2240,
+        288
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "4ee75635-eec5-4db7-bd67-a9bebd409257",
+      "name": "Ответ: исполнено",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2464,
+        288
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a",
+              "name": "action_id",
+              "value": "={{ $(\"Пометить исполненным\").item.json.action_id }}",
+              "type": "string"
+            },
+            {
+              "id": "i",
+              "name": "idempotent",
+              "value": "={{ $(\"Пометить исполненным\").item.json.idempotent }}",
+              "type": "boolean"
+            },
+            {
+              "id": "t",
+              "name": "target_vacancy_id",
+              "value": "={{ $(\"Пометить исполненным\").item.json.target_vacancy_id }}",
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "8197e760-0198-4ea1-b13d-d1b9dc1325e7",
+      "name": "Прочитать вакансию",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        480
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $(\"Валидировать вход\").item.json.vacancy_id }}.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "a08e13bf-da80-4f1c-bd9c-2f7ba8e9a1d0",
+      "name": "Критерии",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.criteria_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "979d542f-5e1c-40aa-9917-69f24bdbfca0",
+      "name": "Разборы",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1120,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.reviews_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "e0179988-c4d4-49a7-9c33-37335bee2a71",
+      "name": "Действия",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1344,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.actions_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7bcac996-e848-483b-a6f0-a89617a5e6fa",
+      "name": "Аудит",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1568,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.audit_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "6422bb6a-aabe-4674-85d3-1f64ca3fa710",
+      "name": "Собрать id кандидатов",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const reviews = $('Разборы').all();\nreturn reviews.map(function(rv) { return { json: { applicant_id: Number(rv.json.potok_candidate_id) } }; });"
+      }
+    },
+    {
+      "id": "6024f1e0-47ff-498f-a4f9-7bfb89613bb9",
+      "name": "Нормализовать резюме",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2016,
+        480
+      ],
+      "parameters": {
+        "mode": "each",
+        "source": "database",
+        "workflowId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "JBNMCZOFHrMBplAj"
+        }
+      }
+    },
+    {
+      "id": "a4ceeadd-b193-49a8-904e-2f65567c5547",
+      "name": "Собрать дайджест",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const vacancy = $('Прочитать вакансию').first().json;\nconst criteriaRow = $('Критерии').first().json;\nconst reviews = $('Разборы').all();\nconst resumes = $('Нормализовать резюме').all();\nconst actions = $('Действия').all();\nconst audit = $('Аудит').all();\nconst criteria = (criteriaRow && criteriaRow.criteria) || [];\nconst kinds = { must_have: 0, nice_to_have: 0, constraint: 0 };\ncriteria.forEach(function(c) { if (c && c.kind) { kinds[c.kind] = (kinds[c.kind] || 0) + 1; } });\nconst titleMap = {};\ncriteria.forEach(function(c) { if (c && c.criterion_id) { titleMap[c.criterion_id] = c.title; } });\nconst nameById = {};\nresumes.forEach(function(r) { nameById[r.json.applicant_id] = r.json.name; });\nconst breakdown = { 'continue': [], 'clarify': [], 'not_for_current_vacancy': [], 'consider_neighbour_role': [] };\nreviews.forEach(function(rv) {\n  const r = rv.json;\n  const evidence = Array.isArray(r.evidence) ? r.evidence : [];\n  const closed = evidence.filter(function(e) { return e.state === 'confirmed'; }).length;\n  const gaps = Array.isArray(r.critical_unknowns) ? r.critical_unknowns : [];\n  const entry = { candidate_id: String(r.potok_candidate_id), name: nameById[r.potok_candidate_id] || ('#' + r.potok_candidate_id), closed: closed, total: evidence.length, gaps: gaps.map(function(g) { return g.question || titleMap[g.criterion_id] || ''; }) };\n  (breakdown[r.recommendation] || breakdown['clarify']).push(entry);\n});\nconst actionsOut = actions.filter(function(a) { return a.json && a.json.action_type; }).map(function(a) { return { action_type: a.json.action_type, status: a.json.status, candidate_id: String(a.json.potok_candidate_id), source_vacancy_id: a.json.source_vacancy_id, target_vacancy_id: a.json.target_vacancy_id }; });\nconst auditOut = audit.filter(function(a) { return a.json && a.json.event_type; }).map(function(a) { return { event_type: a.json.event_type, actor_type: a.json.actor_type }; });\nconst criteria_list = criteria.map(function(c) { return { title: c.title, kind: c.kind }; });\nreturn [{ json: { vacancy_name: vacancy.name || '', criteria: kinds, criteria_list: criteria_list, candidates: breakdown, actions: actionsOut, audit: auditOut } }];",
+        "parameters": {
+          "jsCode": "const vacancy = $('Прочитать вакансию').first().json;\nconst criteriaRow = $('Критерии').first().json;\nconst reviews = $('Разборы').all();\nconst resumes = $('Нормализовать резюме').all();\nconst actions = $('Действия').all();\nconst audit = $('Аудит').all();\nconst criteria = (criteriaRow && criteriaRow.criteria) || [];\nconst kinds = { must_have: 0, nice_to_have: 0, constraint: 0 };\ncriteria.forEach(function(c) { if (c && c.kind) { kinds[c.kind] = (kinds[c.kind] || 0) + 1; } });\nconst titleMap = {};\ncriteria.forEach(function(c) { if (c && c.criterion_id) { titleMap[c.criterion_id] = c.title; } });\nconst nameById = {};\nresumes.forEach(function(r) { nameById[r.json.applicant_id] = r.json.name; });\nconst breakdown = { 'continue': [], 'clarify': [], 'not_for_current_vacancy': [], 'consider_neighbour_role': [] };\nreviews.forEach(function(rv) {\n  const r = rv.json;\n  const evidence = Array.isArray(r.evidence) ? r.evidence : [];\n  const closed = evidence.filter(function(e) { return e.state === 'confirmed'; }).length;\n  const gaps = Array.isArray(r.critical_unknowns) ? r.critical_unknowns : [];\n  const entry = { candidate_id: String(r.potok_candidate_id), name: nameById[r.potok_candidate_id] || ('#' + r.potok_candidate_id), closed: closed, total: evidence.length, gaps: gaps.map(function(g) { return g.question || titleMap[g.criterion_id] || ''; }) };\n  (breakdown[r.recommendation] || breakdown['clarify']).push(entry);\n});\nconst actionsOut = actions.map(function(a) { return { action_type: a.json.action_type, status: a.json.status, candidate_id: String(a.json.potok_candidate_id), source_vacancy_id: a.json.source_vacancy_id, target_vacancy_id: a.json.target_vacancy_id }; });\nconst auditOut = audit.map(function(a) { return { event_type: a.json.event_type, actor_type: a.json.actor_type }; });\nconst criteria_list = criteria.map(function(c) { return { title: c.title, kind: c.kind }; });\nreturn [{ json: { vacancy_name: vacancy.name || '', criteria: kinds, criteria_list: criteria_list, candidates: breakdown, actions: actionsOut, audit: auditOut } }];"
+        }
+      }
+    },
+    {
+      "id": "0d54c29c-de00-43c7-8434-8c1f88104279",
+      "name": "Ответ: дайджест",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        2464,
+        480
+      ],
+      "parameters": {
+        "mode": "manual",
+        "includeOtherFields": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "n",
+              "name": "vacancy_name",
+              "value": "={{ $(\"Собрать дайджест\").item.json.vacancy_name }}",
+              "type": "string"
+            },
+            {
+              "id": "c",
+              "name": "criteria",
+              "value": "={{ $(\"Собрать дайджест\").item.json.criteria }}",
+              "type": "object"
+            },
+            {
+              "id": "cl",
+              "name": "criteria_list",
+              "value": "={{ $(\"Собрать дайджест\").item.json.criteria_list }}",
+              "type": "array"
+            },
+            {
+              "id": "cd",
+              "name": "candidates",
+              "value": "={{ $(\"Собрать дайджест\").item.json.candidates }}",
+              "type": "object"
+            },
+            {
+              "id": "a",
+              "name": "actions",
+              "value": "={{ $(\"Собрать дайджест\").item.json.actions }}",
+              "type": "array"
+            },
+            {
+              "id": "au",
+              "name": "audit",
+              "value": "={{ $(\"Собрать дайджест\").item.json.audit }}",
+              "type": "array"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Валидировать вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валидировать вход": {
+      "main": [
+        [
+          {
+            "node": "Классификатор намерений",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Классификатор намерений": {
+      "main": [
+        [
+          {
+            "node": "SQL подтверждения",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Прочитать действие",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Прочитать вакансию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SQL подтверждения": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить": {
+      "main": [
+        [
+          {
+            "node": "Ответ: подтверждено",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать действие": {
+      "main": [
+        [
+          {
+            "node": "Проверить статус",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить статус": {
+      "main": [
+        [
+          {
+            "node": "Проверить наличие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить наличие": {
+      "main": [
+        [
+          {
+            "node": "Определить перенос",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить перенос": {
+      "main": [
+        [
+          {
+            "node": "Уже на вакансии?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Уже на вакансии?": {
+      "main": [
+        [
+          {
+            "node": "Пометить (идемпотентно)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Перенести кандидата",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить (идемпотентно)": {
+      "main": [
+        [
+          {
+            "node": "Записать (идемпотентно)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать (идемпотентно)": {
+      "main": [
+        [
+          {
+            "node": "Ответ: идемпотентно",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Перенести кандидата": {
+      "main": [
+        [
+          {
+            "node": "Пометить исполненным",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить исполненным": {
+      "main": [
+        [
+          {
+            "node": "Записать исполнение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать исполнение": {
+      "main": [
+        [
+          {
+            "node": "Ответ: исполнено",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать вакансию": {
+      "main": [
+        [
+          {
+            "node": "Критерии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Критерии": {
+      "main": [
+        [
+          {
+            "node": "Разборы",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Разборы": {
+      "main": [
+        [
+          {
+            "node": "Действия",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Действия": {
+      "main": [
+        [
+          {
+            "node": "Аудит",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Аудит": {
+      "main": [
+        [
+          {
+            "node": "Собрать id кандидатов",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать id кандидатов": {
+      "main": [
+        [
+          {
+            "node": "Нормализовать резюме",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нормализовать резюме": {
+      "main": [
+        [
+          {
+            "node": "Собрать дайджест",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать дайджест": {
+      "main": [
+        [
+          {
+            "node": "Ответ: дайджест",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": null
+}

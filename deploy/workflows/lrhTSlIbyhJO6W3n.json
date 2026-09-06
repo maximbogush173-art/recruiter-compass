@@ -1,0 +1,333 @@
+{
+  "id": "lrhTSlIbyhJO6W3n",
+  "name": "Получить контекст вакансии для Компаса",
+  "description": null,
+  "active": true,
+  "nodes": [
+    {
+      "id": "ctx-trigger",
+      "name": "Получить вход инструмента",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        272
+      ],
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "vacancy_id",
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ctx-trigger-note",
+      "name": "Паспорт: Вход инструмента",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        64
+      ],
+      "parameters": {
+        "content": "### Вход инструмента\n\n**Job:** принять типизированный vacancy_id от ядра.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** принять типизированный vacancy_id от ядра.\n**Output:** один системный идентификатор вакансии.\n**Control:** модель не передаёт этот параметр..",
+        "height": 194,
+        "width": 285,
+        "color": 5
+      }
+    },
+    {
+      "id": "ctx-criteria",
+      "name": "Прочитать подтверждённые критерии",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput",
+      "position": [
+        336,
+        272
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT criteria_version_id, criteria FROM recruiter_compass.vacancy_criteria_versions WHERE potok_vacancy_id = $1 AND status = 'confirmed' ORDER BY version_number DESC LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ $('Получить вход инструмента').first().json.vacancy_id }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "ctx-criteria-note",
+      "name": "Паспорт: Подтверждённые критерии",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        320,
+        64
+      ],
+      "parameters": {
+        "content": "### Подтверждённые критерии\n\n**Job:** прочитать последнюю confirmed-версию критериев.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** прочитать последнюю confirmed-версию критериев.\n**Output:** версия и критерии либо пустой результат.\n**Control:** параметризованный SELECT, ошибка возвращается как структурированный результат..",
+        "height": 130,
+        "width": 285,
+        "color": 5
+      }
+    },
+    {
+      "id": "ctx-job",
+      "name": "Прочитать вакансию в Potok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput",
+      "position": [
+        672,
+        272
+      ],
+      "parameters": {
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $('Получить вход инструмента').item.json.vacancy_id }}.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "ctx-job-note",
+      "name": "Паспорт: Карточка вакансии",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        640,
+        64
+      ],
+      "parameters": {
+        "content": "### Карточка вакансии\n\n**Job:** прочитать карточку вакансии из песочницы Potok.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** прочитать карточку вакансии из песочницы Potok.\n**Output:** исходная карточка без интерпретации.\n**Control:** только GET, таймаут 10 секунд..",
+        "height": 130,
+        "width": 285,
+        "color": 5
+      }
+    },
+    {
+      "id": "ctx-candidates",
+      "name": "Прочитать кандидатов вакансии",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 1000,
+      "onError": "continueErrorOutput",
+      "position": [
+        992,
+        272
+      ],
+      "parameters": {
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $('Получить вход инструмента').item.json.vacancy_id }}/ajs_joins.json?page_size=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "ctx-candidates-note",
+      "name": "Паспорт: Связи с кандидатами",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        976,
+        64
+      ],
+      "parameters": {
+        "content": "### Связи с кандидатами\n\n**Job:** прочитать не более 100 связей кандидатов с вакансией.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** прочитать не более 100 связей кандидатов с вакансией.\n**Output:** исходный ответ Potok.\n**Control:** только GET, без подстановки ID моделью..",
+        "height": 130,
+        "width": 285,
+        "color": 5
+      }
+    },
+    {
+      "id": "ctx-return",
+      "name": "Вернуть контекст вакансии",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        1344,
+        272
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ctx-ok",
+              "name": "ok",
+              "value": "={{ true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "ctx-data",
+              "name": "data",
+              "value": "={{ { vacancy_id: $('Получить вход инструмента').item.json.vacancy_id, criteria_version_id: $('Прочитать подтверждённые критерии').item.json.criteria_version_id ?? null, criteria: ($('Прочитать подтверждённые критерии').item.json.criteria ?? []).map(c => ({ kind: c.kind, title: c.title, verification_rule: c.verification_rule, why_it_matters: c.why_it_matters })), vacancy: $('Прочитать вакансию в Potok').item.json, candidate_connections: $('Прочитать кандидатов вакансии').item.json } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ctx-return-note",
+      "name": "Паспорт: Ответ инструмента",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1312,
+        64
+      ],
+      "parameters": {
+        "content": "### Ответ инструмента\n\n**Job:** вернуть единый объект {ok, data}.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** вернуть единый объект {ok, data}.\n**Output:** естественная JSON-форма для агента.\n**Control:** не передаёт служебные поля промежуточных узлов..",
+        "height": 130,
+        "width": 285,
+        "color": 4
+      }
+    },
+    {
+      "id": "ctx-error",
+      "name": "Вернуть ошибку чтения вакансии",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        992,
+        480
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ctx-error-ok",
+              "name": "ok",
+              "value": "={{ false }}",
+              "type": "boolean"
+            },
+            {
+              "id": "ctx-error-body",
+              "name": "error",
+              "value": "={{ { code: 'UPSTREAM_ERROR', message: 'Не удалось прочитать данные вакансии. Попробуйте повторить позже.' } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ctx-error-note",
+      "name": "Паспорт: Ошибка инструмента",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        976,
+        672
+      ],
+      "parameters": {
+        "content": "### Ошибка инструмента\n\n**Job:** превратить ошибку Potok или Postgres в понятный результат.\n**Input:** Данные предыдущего узла в типизированной форме..\n**Action:** превратить ошибку Potok или Postgres в понятный результат.\n**Output:** {ok:false, error}.\n**Control:** не раскрывает технические детали и секреты..",
+        "height": 130,
+        "width": 285
+      }
+    }
+  ],
+  "connections": {
+    "Получить вход инструмента": {
+      "main": [
+        [
+          {
+            "node": "Прочитать подтверждённые критерии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать подтверждённые критерии": {
+      "main": [
+        [
+          {
+            "node": "Прочитать вакансию в Potok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Вернуть ошибку чтения вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать вакансию в Potok": {
+      "main": [
+        [
+          {
+            "node": "Прочитать кандидатов вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Вернуть ошибку чтения вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать кандидатов вакансии": {
+      "main": [
+        [
+          {
+            "node": "Вернуть контекст вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Вернуть ошибку чтения вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

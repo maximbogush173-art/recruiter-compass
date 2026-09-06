@@ -1,0 +1,4 @@
+# Скрипты должны оставаться с LF-переводами строк — они исполняются на Linux-сервере.
+*.sh text eol=lf
+*.mjs text eol=lf
+*.sql text eol=lf

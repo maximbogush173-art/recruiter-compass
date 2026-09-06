@@ -1,0 +1,16 @@
+{
+  "_fixture": {
+    "kind": "synthetic_potok_contract",
+    "live_export": false,
+    "source_endpoint": "GET /jobs/{id}.json"
+  },
+  "id": 900101,
+  "name": "Руководитель корпоративных продаж",
+  "status": "opened",
+  "description": "Нужен сильный продавец с опытом крупных клиентов. В подчинении три менеджера; Москва, гибрид, командировки до 30%.",
+  "location": "Москва",
+  "executive_recruiter": {
+    "id": 990001,
+    "email": "recruiter@example.test"
+  }
+}
