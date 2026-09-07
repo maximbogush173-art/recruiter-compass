@@ -316,6 +316,49 @@ const BLOCKS = [
   },
 ];
 
+const STACK = [
+  {
+    name: "n8n",
+    icon: GitBranch,
+    text: "Оркестратор всей логики агента",
+    points: [
+      "Агентное ядро (AI Agent) + 17 инструментов + 4 блока + 2 под-флоу — 24 workflow",
+      "Вход — webhook /webhook/compass-agent-lab; флоу связаны с креденшалами по имени",
+      "Держит границу: модель выбирает read-only инструмент, запись — только блок 4",
+    ],
+  },
+  {
+    name: "DeepSeek",
+    icon: MagnifyingGlass,
+    text: "Языковая модель для интерпретации",
+    points: [
+      "Агент сам выбирает инструмент и формулирует ответ рекрутеру",
+      "Блоки извлекают критерии, вердикты, вопросы и черновики",
+      "temperature 0 — ответы детерминированные, без выдумок",
+    ],
+  },
+  {
+    name: "Potok API",
+    icon: LinkSimple,
+    text: "Источник данных о найме",
+    points: [
+      "Чтение (GET): вакансии, резюме, кандидаты, этапы",
+      "Запись (POST): только подтверждённые действия через блок 4",
+      "Bearer-токен песочницы — в креденшале Header Auth",
+    ],
+  },
+  {
+    name: "PostgreSQL",
+    icon: Database,
+    text: "Изолированная база состояния",
+    points: [
+      "Схема recruiter_compass: критерии, разборы, действия, аудит",
+      "Агент stateless: состояние в базе, а не в памяти модели",
+      "Отдельный контейнер, не пересекается с рабочей базой",
+    ],
+  },
+];
+
 export function App() {
   const [messages, setMessages] = useState([{ role: "agent", text: WELCOME }]);
   const [input, setInput] = useState("");
@@ -537,10 +580,20 @@ export function App() {
             <div className="architecture__block">
               <h3><Stack weight="bold" /> Технологии и интеграции</h3>
               <ul className="stack-list">
-                <li><LinkSimple weight="bold" /><div><strong>Potok API</strong><p>вакансии, кандидаты, этапы, запись действий</p></div></li>
-                <li><MagnifyingGlass weight="bold" /><div><strong>DeepSeek</strong><p>интерпретация фактов и намерений рекрутера</p></div></li>
-                <li><Database weight="bold" /><div><strong>Supabase</strong><p>состояние разбора, критерии, действия, аудит</p></div></li>
-                <li><GitBranch weight="bold" /><div><strong>n8n</strong><p>роутер намерений (18 операций) → 4 блока → 3 модуля</p></div></li>
+                {STACK.map((t) => (
+                  <li key={t.name}>
+                    <t.icon weight="bold" />
+                    <div>
+                      <strong>{t.name}</strong>
+                      <p>{t.text}</p>
+                      <ul className="stack-list__points">
+                        {t.points.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
