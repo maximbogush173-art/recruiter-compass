@@ -8,3 +8,20 @@ node_modules/
 # Скриншоты QA и одноразовые артефакты проверки.
 qa-*.png
 implementation-*.png
+
+# Внутренние dev-артефакты: хранятся локально, не входят в релиз.
+infra/
+spec/
+.agent-migration-*.json
+WORKFLOW_CONTEXT.md
+AGENTS.md
+ARCHITECTURE.md
+design-qa.md
+*прототип.html
+
+# Одноразовые dev-скрипты агента — кроме четырёх нужных для сборки/сида.
+scripts/*
+!scripts/prepare-sites-build.mjs
+!scripts/build-standalone.mjs
+!scripts/seed-potok.mjs
+!scripts/validate-demo-data.mjs
