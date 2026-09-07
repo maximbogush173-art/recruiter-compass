@@ -320,7 +320,7 @@ input:focus-visible {
 .workspace__header {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 250px 1fr auto;
+  grid-template-columns: 250px 1fr;
   align-items: center;
   gap: 20px;
   padding: 0 18px;
@@ -343,21 +343,6 @@ input:focus-visible {
   border-radius: 50%;
   background: #37ad68;
   box-shadow: 0 0 0 4px rgba(55, 173, 104, 0.1);
-}
-
-.vacancy-select {
-  min-height: 40px;
-  padding: 0 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 13px;
-  border: 1px solid #ccd6df;
-  border-radius: 8px;
-  background: var(--white);
-  color: #314257;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 620;
 }
 
 .sidebar {
@@ -1177,7 +1162,7 @@ footer p {
   }
 
   .workspace__header {
-    grid-template-columns: 210px 1fr auto;
+    grid-template-columns: 210px 1fr;
   }
 
   .message-row--agent {
@@ -1266,24 +1251,12 @@ footer p {
 
   .workspace__header {
     grid-column: 1;
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr;
     padding: 0 12px;
   }
 
   .workspace__header .connection {
     display: none;
-  }
-
-  .vacancy-select {
-    max-width: 44vw;
-    overflow: hidden;
-    font-size: 0;
-    white-space: nowrap;
-  }
-
-  .vacancy-select::before {
-    content: "Вакансия";
-    font-size: 11px;
   }
 
   .sidebar {
@@ -1417,7 +1390,7 @@ footer p {
 }
 
 .workspace--chat .workspace__header {
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
 }
 
 .workspace--chat .conversation {

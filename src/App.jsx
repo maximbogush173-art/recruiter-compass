@@ -264,10 +264,10 @@ const WELCOME =
   "Здравствуйте! Я беру на себя рутину подбора: сверяю резюме с требованиями вакансии, разбираю расшифровки и отзывы, готовлю сообщения и ищу соседние роли. Спросите про вакансию или кандидата.";
 
 const QUICK_COMMANDS = [
-  { label: "Какие вакансии активны?", intent: "list_vacancies" },
-  { label: "Какие кандидаты на вакансии 13?", intent: "list_candidates", vacancy_id: 13 },
-  { label: "Разбери кандидатов по вакансии 13", intent: "review_candidates", vacancy_id: 13 },
-  { label: "Покажи сводку по вакансии 13", intent: "show_digest", vacancy_id: 13 },
+  { label: "Какие вакансии активны?" },
+  { label: "Какие кандидаты на вакансии 13?", vacancy_id: 13 },
+  { label: "Разбери кандидатов по вакансии 13", vacancy_id: 13 },
+  { label: "Покажи сводку по вакансии 13", vacancy_id: 13 },
 ];
 
 const CAPABILITIES = [
@@ -399,7 +399,7 @@ export function App() {
   };
 
   const runQuick = (cmd) => {
-    ask(cmd.label, { intent: cmd.intent, vacancy_id: cmd.vacancy_id });
+    ask(cmd.label, { text: cmd.label, context: { vacancy_id: cmd.vacancy_id } });
   };
 
   const restart = () => {
@@ -480,7 +480,6 @@ export function App() {
             <div className="workspace__header">
               <Brand compact />
               <div className="connection"><span /> Песочница Potok подключена</div>
-              <button className="vacancy-select" type="button">Руководитель корпоративных продаж</button>
             </div>
 
             <div className="conversation" ref={conversationRef} aria-live="polite">
@@ -498,14 +497,16 @@ export function App() {
               )}
             </div>
 
-            <div className="quick-commands">
-              {QUICK_COMMANDS.map((cmd) => (
-                <button key={cmd.label} type="button" onClick={() => runQuick(cmd)}>{cmd.label}</button>
-              ))}
-            </div>
+            {messages.length === 1 && (
+              <div className="quick-commands">
+                {QUICK_COMMANDS.map((cmd) => (
+                  <button key={cmd.label} type="button" onClick={() => runQuick(cmd)}>{cmd.label}</button>
+                ))}
+              </div>
+            )}
 
             <form className="composer" onSubmit={submitMessage}>
-              <button type="button" aria-label="Приложить" onClick={() => ask("Разобрать расшифровку интервью кандидата 70", { intent: "review_transcript", candidate_id: 70, vacancy_id: 13 })}>
+              <button type="button" aria-label="Приложить" onClick={() => ask("Разобрать расшифровку интервью кандидата 70", { text: "Разобрать расшифровку интервью кандидата 70", context: { candidate_id: 70, vacancy_id: 13 } })}>
                 <Paperclip weight="bold" />
               </button>
               <label htmlFor="message" className="sr-only">Сообщение агенту</label>
