@@ -5,13 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/prepare-sites-build.mjs",
-    "build:standalone": "npm run build && node scripts/build-standalone.mjs",
-    "preview": "vite preview",
-    "test:sites": "node --test tests/sites-worker.test.mjs",
-    "test:demo-data": "node scripts/validate-demo-data.mjs",
-    "n8n:agentic-lab:build": "node infra/n8n/agentic-lab/build-agentic-lab.mjs",
-    "n8n:agentic-lab:validate": "node infra/n8n/agentic-lab/validate-agentic-lab.mjs"
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@fontsource-variable/manrope": "^5.3.0",

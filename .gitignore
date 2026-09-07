@@ -19,9 +19,15 @@ ARCHITECTURE.md
 design-qa.md
 *прототип.html
 
-# Одноразовые dev-скрипты агента — кроме четырёх нужных для сборки/сида.
+# Остатки альтернативного хостинга (OpenAI Sites) и роутер-эпохи.
+.openai/
+worker/
+tests/
+dist/server/
+dist/.openai/
+prompts/
+schemas/
+
+# Одноразовые dev-скрипты — кроме seed-potok.mjs (сид песочницы Potok).
 scripts/*
-!scripts/prepare-sites-build.mjs
-!scripts/build-standalone.mjs
 !scripts/seed-potok.mjs
-!scripts/validate-demo-data.mjs
