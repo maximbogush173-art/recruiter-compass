@@ -601,7 +601,7 @@ export function App() {
           <div className="tech-grid" id="principles">
             <div className="tech-item">
               <ShieldCheck weight="duotone" />
-              <div><strong>Детерминированная маршрутизация</strong><p>LLM только интерпретирует; решение и маршрут считает код</p></div>
+              <div><strong>Автономия только на чтение</strong><p>Агент сам выбирает инструменты чтения; запись в Potok — детерминированный шаг по action_id с подтверждением рекрутера</p></div>
             </div>
             <div className="tech-item">
               <Check weight="duotone" />
