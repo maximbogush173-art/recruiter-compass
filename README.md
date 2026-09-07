@@ -148,13 +148,14 @@ bash deploy/scripts/verify-workflows.sh
 
 ```
 src/                     фронтенд (React)
-deploy/                  облачный контур: docker-compose, Caddyfile, workflow JSON,
+public/                  статичные ассеты фронта (фото кандидатов, карта)
+dist/client/             собранный фронтенд (раздаётся Caddy из коробки)
+deploy/                  облачный контур: docker-compose, Caddyfile, 24 workflow,
                          скрипты (миграции/сид/импорт/активация/проверка), RUNBOOK.md
 supabase/migrations/     схема recruiter_compass (0001, 0002)
 supabase/seed/           демо-данные (demo-data.sql) + инструкция
 demo-data/               вымышленный датасет демо (кандидаты, вакансии, ground-truth)
-infra/n8n/src/           исходники блоков на n8n Workflow SDK (для чтения логики)
-spec/                    контракты и правила (rule_id)
+scripts/seed-potok.mjs   сид песочницы Potok из demo-data/
 ```
 
 ## Лицензия
