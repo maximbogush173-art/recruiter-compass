@@ -1,0 +1,690 @@
+{
+  "id": "z4NWcqpAUvrO8wc4",
+  "name": "5. Действия агента",
+  "description": "Блок 5: жизненный цикл действий агента (предложить/подтвердить/исполнить)",
+  "active": false,
+  "nodes": [
+    {
+      "id": "b0c54cab-2b81-4386-9b89-6363c3d0c363",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        192
+      ],
+      "parameters": {
+        "inputSource": "passthrough"
+      }
+    },
+    {
+      "id": "bbadc1a3-62db-4124-9725-10ccb292bb74",
+      "name": "Валидировать вход",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const input = $input.first().json;\nconst body = input.body || input;\nconst intent = String(body.intent || '');\nconst vacancyId = Number(body.vacancy_id);\nconst candidateId = Number(body.candidate_id);\nconst actionId = String(body.action_id || '');\nconst aiInput = String(body.ai_input || '');\nlet actionType = '';\nlet slotLabel = '';\nlet targetVacancyId = 0;\ntry {\n  const parsed = typeof aiInput === 'string' && aiInput.trim() ? JSON.parse(aiInput) : (aiInput || {});\n  actionType = String(parsed.action_type || '');\n  slotLabel = String(parsed.slot || '');\n  targetVacancyId = Number(parsed.target_vacancy_id || 0);\n} catch (e) {\n  const t = String(aiInput || '').toLowerCase();\n  if (t.includes('слот') || t.includes('интервью')) { actionType = 'schedule_interview'; }\n  else if (t.includes('соседн') || t.includes('перенос')) { actionType = 'transfer_to_neighbouring_vacancy'; }\n  else if (t.includes('отказ') || t.includes('отклон')) { actionType = 'prepare_candidate_message'; }\n  else if (t.includes('этап') || t.includes('стади') || t.includes('продвин') || t.includes('воронк')) { actionType = 'advance_candidate'; }\n}\nif (!intent) { throw new Error('Вход требует intent'); }\nif (intent === 'confirm_action' || intent === 'execute_action') {\n  if (!actionId) { throw new Error('Действие требует action_id'); }\n}\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst readActionSql = actionId ? \"SELECT action_id, action_type, status, potok_candidate_id, source_vacancy_id, target_vacancy_id, payload FROM recruiter_compass.action_proposals WHERE action_id = '\" + esc(actionId) + \"' LIMIT 1\" : \"SELECT 1 WHERE false\";\nreturn [{ json: { intent: intent, vacancy_id: vacancyId, candidate_id: candidateId, action_id: actionId, action_type: actionType, slot_label: slotLabel, target_vacancy_id: targetVacancyId, read_action_sql: readActionSql } }];"
+      }
+    },
+    {
+      "id": "1fbb0fe6-606b-4d27-80cd-5e8a8dea5ca4",
+      "name": "Классификатор",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        448,
+        176
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "outputKey": "propose_action",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "propose_action"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "confirm_action",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "confirm_action"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "outputKey": "execute_action",
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.intent }}",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "rightValue": "execute_action"
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "none"
+        }
+      }
+    },
+    {
+      "id": "df4c8839-71d1-4531-b136-6d89cc637334",
+      "name": "Собрать предложение",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const i = $input.first().json;\nconst allowed = ['advance_candidate', 'transfer_to_neighbouring_vacancy', 'prepare_candidate_message', 'schedule_interview'];\nif (allowed.indexOf(i.action_type) < 0) { throw new Error('Неподдерживаемый тип действия: ' + i.action_type); }\nif (!i.candidate_id) { throw new Error('Нужен candidate_id'); }\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst payload = { slot: i.slot_label || null, target_vacancy_id: i.target_vacancy_id || null };\nconst sql = \"INSERT INTO recruiter_compass.action_proposals (action_type, status, potok_candidate_id, source_vacancy_id, target_vacancy_id, payload, idempotency_key, expires_at) VALUES ('\" + esc(i.action_type) + \"', 'ready_for_recruiter_confirmation', \" + Number(i.candidate_id) + \", \" + Number(i.vacancy_id) + \", \" + (i.target_vacancy_id || 'NULL') + \", '\" + esc(JSON.stringify(payload)) + \"'::jsonb, gen_random_uuid(), now() + interval '7 days') RETURNING action_id, action_type, status\";\nreturn [{ json: { sql: sql, action_type: i.action_type, candidate_id: i.candidate_id } }];"
+      }
+    },
+    {
+      "id": "5e540a5a-1379-4cb7-9005-3fe72afcc245",
+      "name": "Записать предложение",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        0
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "c30e661c-d241-47f6-952b-bf7cdf40c0bf",
+      "name": "Ответ: предложение",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const row = $input.first().json;\nconst labels = { advance_candidate: 'перевод кандидата на следующую стадию воронки', schedule_interview: 'бронь слота интервью', prepare_candidate_message: 'отказ кандидату с сообщением', transfer_to_neighbouring_vacancy: 'перенос на соседнюю вакансию' };\nreturn [{ json: { ok: true, action_id: row.action_id, action_type: row.action_type, label: labels[row.action_type] || row.action_type, message: 'Действие зафиксировано как предложение. Ожидает подтверждения рекрутера.' } }];"
+      }
+    },
+    {
+      "id": "2b030bb4-b488-4d3d-bfb7-697bd002604c",
+      "name": "Собрать подтверждение",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const i = $input.first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'confirmed', recruiter_confirmed_by = 'recruiter', recruiter_confirmed_at = now() WHERE action_id = '\" + esc(i.action_id) + \"' AND status IN ('proposed','consent_required','ready_for_recruiter_confirmation') RETURNING action_id, status\";\nreturn [{ json: { sql: sql, action_id: i.action_id } }];"
+      }
+    },
+    {
+      "id": "16991142-214a-4e2e-bb99-99b26e1f3675",
+      "name": "Подтвердить",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        896,
+        192
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "3e53cc5d-63c7-437c-8c19-01ecaa1c3416",
+      "name": "Ответ: подтверждение",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        192
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = $input.all();\nconst confirmed = rows.some(function(r) { return r.json.status === 'confirmed'; });\nreturn [{ json: { ok: confirmed, action_id: $('Собрать подтверждение').first().json.action_id, message: confirmed ? 'Действие подтверждено рекрутером.' : 'Действие не найдено или уже не в статусе ожидания.' } }];"
+      }
+    },
+    {
+      "id": "c8c3b1be-a6ee-4fc6-b0d0-e8568932a499",
+      "name": "Прочитать действие",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        672,
+        384
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $(\"Валидировать вход\").item.json.read_action_sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "b97693b7-4ce9-44eb-83e1-67b7502210ac",
+      "name": "Проверить статус",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        384
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const rows = $input.all();\nconst a = rows[0] && rows[0].json;\nif (!a) { throw new Error('Действие не найдено'); }\nif (a.status !== 'confirmed') { throw new Error('Действие не подтверждено (status=' + a.status + ')'); }\nconst payload = (typeof a.payload === 'object' && a.payload) ? a.payload : {};\nreturn [{ json: { action_id: a.action_id, action_type: a.action_type, candidate_id: Number(a.potok_candidate_id), source_vacancy_id: Number(a.source_vacancy_id), target_vacancy_id: Number(a.target_vacancy_id) || Number(payload.target_vacancy_id) || 0, slot: payload.slot || '' } }];"
+      }
+    },
+    {
+      "id": "f459f10a-959c-4c1d-8360-ede82c87b4ce",
+      "name": "Вакансия (этапы)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        384
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $json.source_vacancy_id }}.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "88af34e9-b8b0-4dd3-aaef-cbd5cd19cf6a",
+      "name": "Связи вакансии",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1344,
+        384
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://demo.app.potok.io/api/v3/jobs/{{ $(\"Проверить статус\").item.json.source_vacancy_id }}/ajs_joins.json?page_size=100",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "6714fc35-7a72-4367-814d-2faf751596c9",
+      "name": "Определить действие",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        384
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const act = $('Проверить статус').first().json;\nconst job = $('Вакансия (этапы)').first().json;\nconst joinsObj = $('Связи вакансии').first().json;\nconst joins = (joinsObj && joinsObj.objects) || [];\nconst stages = (job && job.stages) || [];\nconst my = joins.find(function(j) { return Number(j.applicant_id) === act.candidate_id; });\nlet method = '';\nlet url = '';\nlet body = null;\nlet note = '';\nif (act.action_type === 'advance_candidate' || act.action_type === 'schedule_interview') {\n  if (!my) { throw new Error('Связь кандидата с вакансией не найдена'); }\n  let target = null;\n  if (act.action_type === 'advance_candidate') {\n    const cur = stages.find(function(s) { return s.id === my.stage.id; });\n    const curSerial = cur ? Number(cur.serial) : -1;\n    target = stages.filter(function(s) { return Number(s.serial) === curSerial + 1; })[0];\n    if (!target) { throw new Error('Следующей стадии нет — кандидат уже на последней'); }\n    note = 'стадия: ' + (cur ? cur.name : '?') + ' -> ' + target.name;\n  } else {\n    target = stages.find(function(s) { return s.stage_type === 'interview_hr'; }) || stages.find(function(s) { return s.stage_type && s.stage_type.indexOf('interview') === 0; });\n    if (!target) { throw new Error('Стадия интервью не найдена'); }\n    note = 'стадия: ' + target.name + (act.slot ? '; слот: ' + act.slot : '');\n  }\n  method = 'PATCH';\n  url = 'https://demo.app.potok.io/api/v3/ajs_joins/' + my.id + '.json';\n  body = { stage_id: target.id };\n} else if (act.action_type === 'transfer_to_neighbouring_vacancy') {\n  if (!act.target_vacancy_id) { throw new Error('Не указана целевая вакансия'); }\n  method = 'POST';\n  url = 'https://demo.app.potok.io/api/v3/ajs_joins.json';\n  body = { job_id: act.target_vacancy_id, applicant_id: act.candidate_id, stage_type: 'sourced' };\n  note = 'перенос кандидата на вакансию ' + act.target_vacancy_id;\n} else if (act.action_type === 'prepare_candidate_message') {\n  method = '';\n  url = '';\n  body = null;\n  note = 'сообщение об отказе подготовлено; отклонение в Potok рекрутер выполняет вручную';\n} else {\n  throw new Error('Неподдерживаемый тип исполнения: ' + act.action_type);\n}\nreturn [{ json: { action_id: act.action_id, action_type: act.action_type, join_id: my ? my.id : null, candidate_id: act.candidate_id, source_vacancy_id: act.source_vacancy_id, target_vacancy_id: act.target_vacancy_id, method: method, url: url, body: body, note: note } }];"
+      }
+    },
+    {
+      "id": "269ac91e-d451-444e-b729-a2adbe187311",
+      "name": "Нужен вызов Potok?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1792,
+        384
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.method }}",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "id": "132ee782-ed80-47cc-afc4-2f945a2f3869",
+      "name": "Исполнить в Potok",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2016,
+        288
+      ],
+      "parameters": {
+        "method": "={{ $json.method }}",
+        "url": "={{ $json.url }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.body) }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "id": "eac59ab2-7f08-451a-93ab-c6b977bb73f3",
+      "name": "Пометить исполненным (Potok)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        288
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Определить действие').first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst eventData = { note: d.note, join_id: d.join_id, target_vacancy_id: d.target_vacancy_id || null };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'executed', executed_at = now() WHERE action_id = '\" + esc(String(d.action_id)) + \"' AND status = 'confirmed'; INSERT INTO recruiter_compass.action_audit (action_id, event_type, actor_type, event_data) VALUES ('\" + esc(String(d.action_id)) + \"', 'execution_succeeded', 'agent', '\" + esc(JSON.stringify(eventData)) + \"'::jsonb)\";\nreturn [{ json: { sql: sql, action_id: d.action_id, note: d.note } }];"
+      }
+    },
+    {
+      "id": "dbbb0f51-fe7b-4270-a691-2e52171812c5",
+      "name": "Записать исполнение (Potok)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2464,
+        288
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "a41f38cf-3065-454d-803e-18e809c71172",
+      "name": "Ответ: исполнение (Potok)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2688,
+        288
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Пометить исполненным (Potok)').first().json;\nreturn [{ json: { ok: true, action_id: d.action_id, executed: true, note: d.note, message: 'Действие исполнено: ' + d.note } }];"
+      }
+    },
+    {
+      "id": "9b39cc98-7392-4ad1-859c-389d1527055c",
+      "name": "Пометить исполненным (без Potok)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Определить действие').first().json;\nconst esc = function(s) { return String(s).replace(/'/g, \"''\"); };\nconst eventData = { note: d.note, join_id: d.join_id, target_vacancy_id: d.target_vacancy_id || null };\nconst sql = \"UPDATE recruiter_compass.action_proposals SET status = 'executed', executed_at = now() WHERE action_id = '\" + esc(String(d.action_id)) + \"' AND status = 'confirmed'; INSERT INTO recruiter_compass.action_audit (action_id, event_type, actor_type, event_data) VALUES ('\" + esc(String(d.action_id)) + \"', 'execution_succeeded', 'agent', '\" + esc(JSON.stringify(eventData)) + \"'::jsonb)\";\nreturn [{ json: { sql: sql, action_id: d.action_id, note: d.note } }];"
+      }
+    },
+    {
+      "id": "699141a8-4654-49f7-8f85-28024d735906",
+      "name": "Записать исполнение (без Potok)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2240,
+        480
+      ],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql }}"
+      },
+      "credentials": {
+        "postgres": {
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "id": "e60c1833-b730-4487-9208-106e904b9fd1",
+      "name": "Ответ: исполнение (без Potok)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2464,
+        480
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const d = $('Пометить исполненным (без Potok)').first().json;\nreturn [{ json: { ok: true, action_id: d.action_id, executed: true, note: d.note, message: 'Действие исполнено: ' + d.note } }];"
+      }
+    }
+  ],
+  "connections": {
+    "Execute Workflow Trigger": {
+      "main": [
+        [
+          {
+            "node": "Валидировать вход",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Валидировать вход": {
+      "main": [
+        [
+          {
+            "node": "Классификатор",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Классификатор": {
+      "main": [
+        [
+          {
+            "node": "Собрать предложение",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Собрать подтверждение",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Прочитать действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать предложение": {
+      "main": [
+        [
+          {
+            "node": "Записать предложение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать предложение": {
+      "main": [
+        [
+          {
+            "node": "Ответ: предложение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Собрать подтверждение": {
+      "main": [
+        [
+          {
+            "node": "Подтвердить",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подтвердить": {
+      "main": [
+        [
+          {
+            "node": "Ответ: подтверждение",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Прочитать действие": {
+      "main": [
+        [
+          {
+            "node": "Проверить статус",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Проверить статус": {
+      "main": [
+        [
+          {
+            "node": "Вакансия (этапы)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Вакансия (этапы)": {
+      "main": [
+        [
+          {
+            "node": "Связи вакансии",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Связи вакансии": {
+      "main": [
+        [
+          {
+            "node": "Определить действие",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Определить действие": {
+      "main": [
+        [
+          {
+            "node": "Нужен вызов Potok?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Нужен вызов Potok?": {
+      "main": [
+        [
+          {
+            "node": "Исполнить в Potok",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Пометить исполненным (без Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Исполнить в Potok": {
+      "main": [
+        [
+          {
+            "node": "Пометить исполненным (Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить исполненным (Potok)": {
+      "main": [
+        [
+          {
+            "node": "Записать исполнение (Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать исполнение (Potok)": {
+      "main": [
+        [
+          {
+            "node": "Ответ: исполнение (Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Пометить исполненным (без Potok)": {
+      "main": [
+        [
+          {
+            "node": "Записать исполнение (без Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Записать исполнение (без Potok)": {
+      "main": [
+        [
+          {
+            "node": "Ответ: исполнение (без Potok)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
