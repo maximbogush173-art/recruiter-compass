@@ -1614,6 +1614,28 @@ footer p {
   color: rgba(255, 255, 255, 0.56);
 }
 
+.block-list__points {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.block-list__points li {
+  display: flex;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.42;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.block-list__points li::before {
+  content: "—";
+  color: var(--coral);
+  flex: 0 0 auto;
+}
+
 .stack-list li {
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
