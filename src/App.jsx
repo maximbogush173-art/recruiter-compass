@@ -43,13 +43,13 @@ function RecruiterMessage({ children, time }) {
   );
 }
 
-function AgentMessage({ children, time }) {
+function AgentMessage({ children, time, error }) {
   return (
     <div className="message-row message-row--agent">
       <span className="agent-mark" aria-hidden="true">
         <NavigationArrow weight="fill" />
       </span>
-      <div className="agent-message">{children}</div>
+      <div className={"agent-message" + (error ? " agent-message--error" : "")}>{children}</div>
       <time>{time}</time>
     </div>
   );
@@ -264,10 +264,10 @@ const WELCOME =
   "Здравствуйте! Я беру на себя рутину подбора: сверяю резюме с требованиями вакансии, разбираю расшифровки и отзывы, готовлю сообщения и ищу соседние роли. Спросите про вакансию или кандидата.";
 
 const QUICK_COMMANDS = [
-  { label: "Какие вакансии активны?" },
-  { label: "Какие кандидаты на вакансии 13?", vacancy_id: 13 },
-  { label: "Разбери кандидатов по вакансии 13", vacancy_id: 13 },
-  { label: "Покажи сводку по вакансии 13", vacancy_id: 13 },
+  { label: "Покажи утреннюю сводку", vacancy_id: 13 },
+  { label: "Что ты умеешь?" },
+  { label: "Разбери кандидатов по вакансии", vacancy_id: 13 },
+  { label: "Покажи активные вакансии" },
 ];
 
 const CAPABILITIES = [
@@ -383,9 +383,11 @@ export function App() {
         body: JSON.stringify({ ...body, session_id: sessionRef.current }),
       });
       const data = await res.json();
-      setMessages((items) => [...items, { role: "agent", text: data?.answer || data?.text || "" }]);
+      const isError = !res.ok || data?.ok === false;
+      const text = data?.answer || data?.error?.message || "Не удалось выполнить запрос. Попробуйте ещё раз.";
+      setMessages((items) => [...items, { role: "agent", text, error: isError }]);
     } catch {
-      setMessages((items) => [...items, { role: "agent", text: "Не удалось получить ответ от агента. Проверьте, что n8n запущен." }]);
+      setMessages((items) => [...items, { role: "agent", text: "Не удалось получить ответ от агента. Проверьте соединение и попробуйте ещё раз.", error: true }]);
     } finally {
       setThinking(false);
     }
@@ -487,7 +489,7 @@ export function App() {
                 m.role === "recruiter" ? (
                   <RecruiterMessage key={`r-${index}`} time="сейчас">{m.text}</RecruiterMessage>
                 ) : (
-                  <AgentMessage key={`a-${index}`} time="сейчас">{renderAgentContent(m)}</AgentMessage>
+                  <AgentMessage key={`a-${index}`} time="сейчас" error={m.error}>{renderAgentContent(m)}</AgentMessage>
                 )
               )}
               {thinking && (

@@ -604,6 +604,19 @@ input:focus-visible {
   box-shadow: 0 3px 10px rgba(31, 53, 70, 0.04);
 }
 
+.agent-message--error {
+  background: #fdf7f5;
+  border-color: #f2d3c9;
+}
+
+.agent-message--error .agent-answer {
+  color: #9c5848;
+}
+
+.agent-message--error .agent-mark {
+  color: #c96f56;
+}
+
 .recruiter-message {
   max-width: 610px;
   padding: 12px 15px;
